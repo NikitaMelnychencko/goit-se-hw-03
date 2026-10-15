@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import logging
 from threading import Thread
+import concurrent.futures
 
 parser = argparse.ArgumentParser(description="Sorting folder")
 parser.add_argument("--source", '--s',  help="Source folder", required=True)
@@ -34,12 +35,15 @@ def copy_file(path):
 if __name__ == "__main__":
   logging.basicConfig(level=logging.INFO, format="%(threadName)s %(message)s")
   folders.append(source)
-  get_folder(source)
+  with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    executor.map(get_folder, folders)
   threads = []
-  for folder in folders:
-    thread = Thread(target=copy_file, args=(folder,))
-    thread.start()
-    threads.append(thread)
-  for thread in threads:
-    thread.join()
+  with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    executor.map(copy_file, folders)
+  # for folder in folders:
+  #   thread = Thread(target=copy_file, args=(folder,))
+  #   thread.start()
+  #   threads.append(thread)
+  # for thread in threads:
+  #   thread.join()
   logging.info("All files copied")
