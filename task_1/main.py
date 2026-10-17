@@ -2,8 +2,9 @@ import argparse
 from pathlib import Path
 import shutil
 import logging
-from threading import Thread
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
+import threading
+
 
 parser = argparse.ArgumentParser(description="Sorting folder")
 parser.add_argument("--source", '--s',  help="Source folder", required=True)
@@ -12,13 +13,16 @@ args = vars(parser.parse_args())
 print(args)
 source = Path(args["source"])
 output = Path(args["output"])
+lock = threading.RLock()
 folders= []
+tasks = []
 
 def get_folder(path):
     for item in path.iterdir():
         if item.is_dir():
-            folders.append(item)
-            get_folder(item)
+            with lock:
+                folders.append(item)
+                tasks.append(executor.submit(get_folder, item))
 
 def copy_file(path):
     for item in path.iterdir():
@@ -34,16 +38,13 @@ def copy_file(path):
 
 if __name__ == "__main__":
   logging.basicConfig(level=logging.INFO, format="%(threadName)s %(message)s")
-  folders.append(source)
-  with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-    executor.map(get_folder, folders)
-  threads = []
-  with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+  with ThreadPoolExecutor(max_workers=20) as executor:
+    tasks.append(executor.submit(get_folder, source))
+    index = 0
+    while index < len(tasks):
+        tasks[index].result()
+        index += 1
+
+  with ThreadPoolExecutor(max_workers=10) as executor:
     executor.map(copy_file, folders)
-  # for folder in folders:
-  #   thread = Thread(target=copy_file, args=(folder,))
-  #   thread.start()
-  #   threads.append(thread)
-  # for thread in threads:
-  #   thread.join()
   logging.info("All files copied")
